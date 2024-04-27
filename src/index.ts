@@ -13,40 +13,40 @@ string_to_int = new BN(str)
 int_to_string = n.toArray('be', len)
 */
 
-import BN from "bn.js";
-import { sha256 } from "js-sha256";
-import * as elliptic from "elliptic";
-import { toHexString, toNumberArray } from "./utils";
+import BN from 'bn.js';
+import { sha256 } from 'js-sha256';
+import * as elliptic from 'elliptic';
+import { toHexString, toNumberArray } from './utils';
 
 type Point = elliptic.curve.base.BasePoint;
 
-const EC = new elliptic.ec("p256");
+const EC = new elliptic.ec('p256');
 const suite = [0x01];
 
-function string_to_point(s: number[]): Point | "INVALID" {
+function string_to_point(s: number[]): Point | 'INVALID' {
   try {
     return EC.curve.decodePoint(s);
   } catch {
-    return "INVALID";
+    return 'INVALID';
   }
 }
 
-function arbitrary_string_to_point(s: number[]): Point | "INVALID" {
+function arbitrary_string_to_point(s: number[]): Point | 'INVALID' {
   if (s.length !== 32) {
-    throw new Error("s should be 32 byte");
+    throw new Error('s should be 32 byte');
   }
   return string_to_point([2, ...s]);
 }
 
 function hash_to_curve(public_key: Point, alpha: number[]) {
-  let hash: Point | "INVALID" = "INVALID";
+  let hash: Point | 'INVALID' = 'INVALID';
   let ctr = 0;
-  while ((hash == "INVALID" || hash.isInfinity()) && ctr < 256) {
+  while ((hash == 'INVALID' || hash.isInfinity()) && ctr < 256) {
     const hash_string = sha256
       .create()
       .update(suite)
       .update([0x01])
-      .update(public_key.encode("array", true))
+      .update(public_key.encode('array', true))
       .update(alpha)
       .update([ctr])
       .update([0x00])
@@ -54,8 +54,8 @@ function hash_to_curve(public_key: Point, alpha: number[]) {
     hash = arbitrary_string_to_point(hash_string); // cofactor = 1, skip multiply
     ctr += 1;
   }
-  if (hash == "INVALID") {
-    throw new Error("hash_to_curve failed");
+  if (hash == 'INVALID') {
+    throw new Error('hash_to_curve failed');
   }
   return hash;
 }
@@ -64,12 +64,12 @@ function nonce_generation(secret_key: BN, h_string: number[]) {
   const h1 = sha256.array(h_string);
   let K = new Array(32)
     .fill(0)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
   let V = new Array(32)
     .fill(1)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
   K = sha256.hmac
     .create(K)
     .update(V)
@@ -87,13 +87,13 @@ function nonce_generation(secret_key: BN, h_string: number[]) {
     .hex();
   V = sha256.hmac.create(K).update(V).hex();
   V = sha256.hmac.create(K).update(V).hex(); // qLen = hLen = 32, skip loop
-  return new BN(V, "hex");
+  return new BN(V, 'hex');
 }
 
 function hash_points(...points: Point[]) {
   const str = [...suite, 0x02];
   for (const point of points) {
-    str.push(...point.encode("array", true));
+    str.push(...point.encode('array', true));
   }
   str.push(0);
 
@@ -109,8 +109,8 @@ function decode_proof(pi: number[]) {
   const c_string = pi.slice(33, 33 + 16);
   const s_string = pi.slice(33 + 16, 33 + 16 + 32);
   const Gamma = string_to_point(gamma_string);
-  if (Gamma == "INVALID") {
-    return "INVALID";
+  if (Gamma == 'INVALID') {
+    return 'INVALID';
   }
 
   const c = new BN(c_string);
@@ -126,30 +126,30 @@ function decode_proof(pi: number[]) {
 function _prove(secret_key: BN, alpha: number[]): number[] {
   const public_key = EC.keyFromPrivate(secret_key.toArray()).getPublic();
   const H = hash_to_curve(public_key, alpha);
-  const h_string = H.encode("array", true);
+  const h_string = H.encode('array', true);
   const Gamma = H.mul(secret_key);
   const k = nonce_generation(secret_key, h_string);
   const c = hash_points(H, Gamma, EC.g.mul(k), H.mul(k));
   const s = k.add(c.mul(secret_key)).umod(EC.n);
   const pi = [
-    ...Gamma.encode("array", true),
-    ...c.toArray("be", 16),
-    ...s.toArray("be", 32),
+    ...Gamma.encode('array', true),
+    ...c.toArray('be', 16),
+    ...s.toArray('be', 32),
   ];
   return pi;
 }
 
 function _proof_to_hash(pi: number[]): number[] {
   const D = decode_proof(pi);
-  if (D == "INVALID") {
-    throw new Error("Invalid proof");
+  if (D == 'INVALID') {
+    throw new Error('Invalid proof');
   }
   const { Gamma } = D;
   const beta = sha256
     .create()
     .update(suite)
     .update([0x03])
-    .update(Gamma.encode("array", false))
+    .update(Gamma.encode('array', false))
     .update([0x00])
     .digest();
 
@@ -158,8 +158,8 @@ function _proof_to_hash(pi: number[]): number[] {
 
 function _verify(public_key: Point, pi: number[], alpha: number[]) {
   const D = decode_proof(pi);
-  if (D == "INVALID") {
-    throw new Error("Invalid proof");
+  if (D == 'INVALID') {
+    throw new Error('Invalid proof');
   }
   const { Gamma, c, s } = D;
   const H = hash_to_curve(public_key, alpha);
@@ -167,23 +167,23 @@ function _verify(public_key: Point, pi: number[], alpha: number[]) {
   const V = H.mul(s).add(Gamma.mul(c).neg());
   const c2 = hash_points(H, Gamma, U, V);
   if (!c.eq(c2)) {
-    throw new Error("Invalid proof");
+    throw new Error('Invalid proof');
   }
   return _proof_to_hash(pi);
 }
 
 function _validate_key(public_key_string: number[]) {
   const public_key = string_to_point(public_key_string);
-  if (public_key == "INVALID" || public_key.isInfinity()) {
-    throw new Error("Invalid public key");
+  if (public_key == 'INVALID' || public_key.isInfinity()) {
+    throw new Error('Invalid public key');
   }
   return public_key;
 }
 
 export function keygen() {
   const keypair = EC.genKeyPair();
-  const secret_key = keypair.getPrivate("hex");
-  const public_key = keypair.getPublic("hex");
+  const secret_key = keypair.getPrivate('hex');
+  const public_key = keypair.getPublic('hex');
   return {
     secret_key,
     public_key,
@@ -191,25 +191,25 @@ export function keygen() {
 }
 
 export function prove(secret_key: string, alpha: string): string {
-  const pi = _prove(new BN(secret_key, "hex"), toNumberArray(alpha, "hex"));
+  const pi = _prove(new BN(secret_key, 'hex'), toNumberArray(alpha, 'hex'));
   return toHexString(pi);
 }
 
 export function proof_to_hash(pi: string): string {
-  const beta = _proof_to_hash(toNumberArray(pi, "hex"));
+  const beta = _proof_to_hash(toNumberArray(pi, 'hex'));
   return toHexString(beta);
 }
 
 export function verify(public_key: string, pi: string, alpha: string): string {
   const beta = _verify(
-    EC.curve.decodePoint(public_key, "hex"),
-    toNumberArray(pi, "hex"),
-    toNumberArray(alpha, "hex")
+    EC.curve.decodePoint(public_key, 'hex'),
+    toNumberArray(pi, 'hex'),
+    toNumberArray(alpha, 'hex')
   );
   return toHexString(beta);
 }
 
 export function validate_key(public_key: string) {
-  _validate_key(toNumberArray(public_key, "hex"));
+  _validate_key(toNumberArray(public_key, 'hex'));
   return;
 }
